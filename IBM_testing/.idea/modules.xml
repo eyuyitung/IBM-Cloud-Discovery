@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/.idea/IBM_connection.iml" filepath="$PROJECT_DIR$/.idea/IBM_connection.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../IBM_testing/.idea/IBM_testing.iml" filepath="$PROJECT_DIR$/../IBM_testing/.idea/IBM_testing.iml" />
+    </modules>
+  </component>
+</project>
