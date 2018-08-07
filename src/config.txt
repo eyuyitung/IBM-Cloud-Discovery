@@ -1,0 +1,4 @@
+# Credential storage #
+in ~/src Create a python file 'config.py', add the following 2 lines and replace with the requisite info :
+USERNAME = 'replace-with-my-username'
+API_KEY = 'replace-with-my-api-key'
