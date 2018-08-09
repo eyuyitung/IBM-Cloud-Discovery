@@ -59,18 +59,21 @@ def get_metrics(virtual_ids):
                 response = client.call('Virtual_Guest', 'get' + metric_name + 'DataByDate',
                                                           metricStartDate, metricEndDate, id=virtual_id)
 
-            inst_dict[response[0]['type']] = {}
-            for data_point in response: # populating inst dict with type : {time : value}
-                if data_point['type'] not in inst_dict.keys():  # add datatype if missing (2 type return from 1 call)
-                    inst_dict[data_point['type']] = {}
-                inst_dict[data_point['type']][data_point['dateTime']] = data_point['counter']
+            if len(response) != 0:
+                inst_dict[response[0]['type']] = {}
+                for data_point in response: # populating inst dict with type : {time : value}
+                    if data_point['type'] not in inst_dict.keys():  # add datatype if missing (2 type return from 1 call)
+                        inst_dict[data_point['type']] = {}
+                    inst_dict[data_point['type']][data_point['dateTime']] = data_point['counter']
+            else: # if no value returned from api
+                inst_dict['n/a'] = {'n/a': None}
 
         for key, value in inst_dict.items():
             inst_dict[key] = Series(data=list(value.values()), index=value.keys())
         inst_ts = concat(inst_dict.values(), axis=1, keys=metrics)
         metric_dict[virtual_id] = inst_ts
 
-    df = concat(metric_dict.values(), keys=virtual_ids)
+    df = concat(metric_dict.values(), keys=virtual_ids, sort=True)
     df.to_csv("metric.csv")
     end = time.perf_counter()
     print(str(end - start))
