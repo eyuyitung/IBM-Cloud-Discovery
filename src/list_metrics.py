@@ -11,8 +11,8 @@ print("start")
 ####
 
 client = SoftLayer.create_client_from_env(config.USERNAME, config.API_KEY)
-accountService = client['SoftLayer_Account']
-sampleSizeHours = 24 # max = 85 without reducing sample rate
+
+sampleSizeHours = 24  # max = 85 without reducing sample rate
 now = (datetime.now(timezone(-timedelta(hours=5))))
 metricEndDate = datetime.strftime(now, "%Y-%m-%dT%H:%M%z")
 metricStartDate = datetime.strftime(now - timedelta(hours=sampleSizeHours), "%Y-%m-%dT%H:%M%z")
@@ -25,9 +25,11 @@ def main():
 
 
 def get_config():
+    account_service = client['SoftLayer_Account']
     object_mask = "mask[id, maxMemory, maxCpu, datacenter.name, regionalGroup.name, " \
-                  "operatingSystem.softwareLicense.softwareDescription.name, hostname, powerState]"
-    masked_call = accountService.getVirtualGuests(mask=object_mask)
+                  "operatingSystem.softwareLicense.softwareDescription.name, hostname, powerState," \
+                  "blockDevices[id, diskImage[capacity, units]]]"
+    masked_call = account_service.getVirtualGuests(mask=object_mask)
     sys_conf = {}
     for account in masked_call:
         account['datacenter'] = account['datacenter']['name']
@@ -35,13 +37,28 @@ def get_config():
         account['regionalGroup'] = account['regionalGroup']['name']
         account['maxMemory'] = int(account['maxMemory']/1024)
         account['powerState'] = account['powerState']['name']
+        drive_tag = 1
+        for disk in account['blockDevices']:
+            if 'diskImage' in disk.keys():  # assuming only relevant drives are disk drives
+                d = disk['diskImage']
+                if d['capacity'] >= 25 and d['units'] == 'GB':
+                    account['drive_' + str(drive_tag) + '_id'] = disk['id']
+                    account['drive_' + str(drive_tag) + '_capacity'] = (str(d['capacity']) + d['units'])
+                    drive_tag += 1
+        del account['blockDevices']  # drop superfluous column
         print_json(account)
         fields = account.keys()
         sys_conf[account['id']] = list(account.values())
 
     df = DataFrame.from_dict(sys_conf, orient='index', columns=fields)
+    df = df.drop('id', axis=1)
+    df.index.name = 'id'
+
+
+
+
     df.to_csv("conf.csv")
-    get_metrics(df.index)
+    #get_metrics(df.index)
 
 
 def get_metrics(virtual_ids):
