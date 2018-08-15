@@ -9,8 +9,7 @@
         Stephen Newton
 '''
 
-
-#Import statments
+#  Import statements
 import SoftLayer
 from src import config
 from datetime import *
@@ -53,7 +52,7 @@ def get_config():
     # Queries the SoftLayer API with mask applied
     masked_call = accountService.getVirtualGuests(mask=object_mask)
 
-    # For each account in the returned from the masked_call, pick data needed and discard rest
+    # For each account in the returned from the masked_call, flatten dictionary to desired information
     for account in masked_call:
         account['datacenter'] = account['datacenter']['name']
         account['operatingSystem'] = account['operatingSystem']['softwareLicense']['softwareDescription']['name']
@@ -61,22 +60,31 @@ def get_config():
         account['maxMemory'] = int(account['maxMemory']/1024)
         account['powerState'] = account['powerState']['name']
 
+        # For each drive on account, print id and account as seperate tagged columns
+        drive_tag = 1
+        for disk in account['blockDevices']:
+            if 'diskImage' in disk.keys():  # assuming only relevant drives are disk drives
+                d = disk['diskImage']
+                if d['capacity'] >= 25 and d['units'] == 'GB':
+                    account['drive_' + str(drive_tag) + '_id'] = disk['id']
+                    account['drive_' + str(drive_tag) + '_capacity'] = (str(d['capacity']) + d['units'])
+                    drive_tag += 1
+        del account['blockDevices']  # drop superfluous column
+
         # If no monitoring agent is installed then nothing is printed
         if len(account['monitoringAgents']) > 0:
             account['monitoringAgents'] = account['monitoringAgents'][0]['id']
         else:
             account['monitoringAgents'] = 'N/A'
 
-        # Print each account to the screen in json format
-        print_json(account)
-
         # Stores the fields using the account keys and then sorts them by their IDs
         fields = account.keys()
         sys_conf[account['id']] = list(account.values())
 
-
     # Creates a data frame and prints it out to CSV file
     df = DataFrame.from_dict(sys_conf, orient='index', columns=fields)
+    df = df.drop('id', axis=1)
+    df.index.name = 'id'
     df.to_csv("conf.csv")
 
     # Calls the get_metrics method (uses the data frame from above)
@@ -107,7 +115,7 @@ def get_metrics(virtual_ids):
             elif metric_name == 'Disk':
                 response = accountService.getDiskUsageMetricDataByDate(metricStartDate, metricEndDate, id=virtual_id)
                 #response = accountService.getDiskUsageMetricDataFromMetricTrackingObjectSystemByDate(metricStartDate, metricEndDate, id=virtual_id)
-                    # SoftLayer.exceptions.SoftLayerAPIError: SoftLayerAPIError(SoftLayer_Exception): $metrics collection must contain data.
+                #  ^^ throws SoftLayer.exceptions.SoftLayerAPIError: SoftLayerAPIError(SoftLayer_Exception): $metrics collection must contain data.
             else:
                 response = client.call('Virtual_Guest', 'get' + metric_name + 'DataByDate',
                                                           metricStartDate, metricEndDate, id=virtual_id)
@@ -123,7 +131,7 @@ def get_metrics(virtual_ids):
 
                     inst_dict[data_point['type']][data_point['dateTime']] = data_point['counter']
 
-            else: # if no value returned from api
+            else:  # if no value returned from api
                 inst_dict['n/a'] = {'n/a': None}
 
         # Stores values under the current metric
@@ -132,18 +140,19 @@ def get_metrics(virtual_ids):
         inst_ts = concat(inst_dict.values(), axis=1, keys=metrics, sort=True)
         metric_dict[virtual_id] = inst_ts
 
-    #Creates a data frame and prints to CSV file
+    # Creates a data frame and prints to CSV file
     df = concat(metric_dict.values(), keys=virtual_ids, sort=True)
     df.to_csv("metric.csv")
 
-    #Calculates the time it takes to make query
+    # time taken to run program
     end = time.perf_counter()
     print("End:" , str(end - start))
 
-
-def print_json(file):  # json output shortcut
+# json output shortcut
+def print_json(file):
     print(json.dumps(file, sort_keys=True, indent=2, separators=(',', ': ')))
 
 
+# ensure program is running as a main process
 if __name__ == '__main__':
     main()
