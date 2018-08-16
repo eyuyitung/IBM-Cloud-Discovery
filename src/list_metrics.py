@@ -18,30 +18,40 @@ metricEndDate = datetime.strftime(now, "%Y-%m-%dT%H:%M%z")
 metricStartDate = datetime.strftime(now - timedelta(hours=sampleSizeHours), "%Y-%m-%dT%H:%M%z")
 
 
+# Agent config parameters
+
+agentName = 'Cpu, Disk, and Memory Monitoring Agent'
+reports = {
+    # Create graphs for Disk Usage (in MB).
+    "Graph Disk Usage": "TRUE",
+    # Monitor and graph System CPU Usage
+    "Graph System CPU Usage": "TRUE",
+    # Creates a graph of your system's memory usage.
+    "Graph Memory Usage": "TRUE",
+}
 
 
 def main():
-    get_config()
+    sys_agents = get_config()
+    sys_datatypes = get_agent_datatypes(sys_agents)
+    get_agent_metrics(sys_datatypes)
 
 
 def get_config():
     account_service = client['SoftLayer_Account']
     object_mask = "mask[id, maxMemory, maxCpu, datacenter.name, regionalGroup.name, " \
                   "operatingSystem.softwareLicense.softwareDescription.name, hostname, powerState," \
-                  "blockDevices[device, id, diskImage[capacity, units]]]"
+                  "blockDevices[device, id, diskImage[capacity, units]], monitoringAgents[id, name, configurationValues]]"
     masked_call = account_service.getVirtualGuests(mask=object_mask)
     sys_conf = {}
-    acc_disks = {}  # {vsi id : [block device disk ids]}
-
+    sys_agents = {}
     for account in masked_call:
         account['datacenter'] = account['datacenter']['name']
         account['operatingSystem'] = account['operatingSystem']['softwareLicense']['softwareDescription']['name']
         account['regionalGroup'] = account['regionalGroup']['name']
         account['maxMemory'] = int(account['maxMemory']/1024)
         account['powerState'] = account['powerState']['name']
-        print_json(account)
         drive_tag = 1
-        acc_disks[account['id']] = []
         for disk in account['blockDevices']:
             if 'diskImage' in disk.keys():  # assuming only relevant drives are disk drives
                 d = disk['diskImage']
@@ -49,9 +59,14 @@ def get_config():
                     account['drive_' + str(drive_tag) + '_id'] = disk['id']
                     account['drive_' + str(drive_tag) + '_capacity'] = (str(d['capacity']) + d['units'])
                     drive_tag += 1
-                    acc_disks[account['id']].append(disk['id'])
+        del account['blockDevices']  # drop duplicate info
 
-        del account['blockDevices']  # drop superfluous column
+        if account['monitoringAgents']:
+            agents = [agent for agent in account['monitoringAgents'] if agent['name'] == agentName]
+            if len(agents) != 0:
+                sys_agents[account['id']] = agents[0]['configurationValues']
+        account['monitoringAgents'] = bool(account['monitoringAgents'])
+
         fields = account.keys()
         sys_conf[account['id']] = list(account.values())
 
@@ -59,8 +74,54 @@ def get_config():
     df = df.drop('id', axis=1)
     df.index.name = 'id'
     df.to_csv("conf.csv")
-    #get_metrics(acc_disks)
+    return sys_agents
 
+
+def get_agent_datatypes(s_agents):
+    agent_config_service = client['Monitoring_Agent_Configuration_Value']
+    sys_datatypes = {}
+    for vsi_id in s_agents.keys():
+        metric_data_types = []
+        for item in reports.keys():
+            if reports[item].strip().upper() == 'TRUE':
+                item_found = False
+                for value in s_agents[vsi_id]:
+                    if value['definition']['name'].strip().upper() == item.strip().upper():
+                        item_found = True
+                        if value['value'].strip().upper() == "TRUE":
+                            try:
+                                response = agent_config_service.getMetricDataType(id=value['id'])
+                                metric_data_types.append(response)
+                            except SoftLayer.SoftLayerAPIError as e:
+                                print("Unable to get the metrics. " %(e.faultCode, e.faultString))
+                        else:
+                            print("The report: " + item +
+                                  " is disable for the agent. Please review the agent configuration.")
+                        break
+                if not item_found:
+                    print("The configuration: " + item + " is not available for the agent.")
+        sys_datatypes[vsi_id] = metric_data_types
+        sys_datatypes[vsi_id].append(s_agents[vsi_id][0]['agentId'])
+    return sys_datatypes
+
+
+def get_agent_metrics(s_datatypes):
+    acc_data = {}
+    for vsi_id in s_datatypes.keys():
+        data = {}
+        try:
+            agent_id = s_datatypes[vsi_id].pop()
+            response = client.call("Monitoring_Agent", "getGraphData", s_datatypes[vsi_id], metricStartDate, metricEndDate,
+                               id=agent_id)
+            if len(response) != 0:
+                filter_data_points(data, response)
+            else:  # if no value returned from api
+                data['n/a'] = {'n/a': 'n/a'}
+        except SoftLayer.SoftLayerAPIError as e:
+            print("Unable to get the report: faultCode=%s, faultString=%s"
+                  % (e.faultCode, e.faultString))
+        acc_data[vsi_id] = data
+    return acc_data
 
 
 def get_metrics(acc_disks):
@@ -95,18 +156,6 @@ def get_metrics(acc_disks):
     print(str(end - start))
 
 
-# call api for all disks on given account credentials, returns dict aggregated by vsi id
-# a_disks = {vsi id : [block device disk ids]}
-def get_disk_metrics_by_id(a_disks):
-    disks_by_disk_id = {} # {type : {datetime : data}}
-    response = client.call('Account', 'getDiskUsageMetricDataFromMetricTrackingObjectSystemByDate', metricStartDate,
-                           metricEndDate)
-    filter_data_points(disks_by_disk_id, response)
-    #TODO associate drive data with account
-    disks_by_vsi_id = {}
-    return disks_by_vsi_id
-
-
 # splits call returning metrics for 2+ types and appends {type : {datetime : data}} to input dict
 def filter_data_points(curr_dict, response):
     curr_dict[response[0]['type']] = {}
@@ -122,3 +171,5 @@ def print_json(file):  # json output shortcut
 
 if __name__ == '__main__':
     main()
+
+#TODO Pass vsi agent id along to retrieval method
