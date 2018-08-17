@@ -5,18 +5,23 @@ import time
 from pandas import *
 import json
 
-####
+#### performance testing
 start = time.perf_counter()
 print("start")
+calls = 0
 ####
 
 client = SoftLayer.create_client_from_env(config.USERNAME, config.API_KEY)
 
 sampleSizeHours = 24
-now = (datetime.now(timezone(-timedelta(hours=5))))
-endDate = datetime.strftime(now, "%Y-%m-%dT%H:%M%z")
-startDate = datetime.strftime(now - timedelta(hours=sampleSizeHours), "%Y-%m-%dT%H:%M%z")
-
+dc_utc_offset = -5.00
+now = (datetime.now(timezone(timedelta(hours=dc_utc_offset))))
+now = now - timedelta(minutes=now.minute % 5, seconds=now.second, microseconds=now.microsecond)
+dt_format = "%Y-%m-%dT%H:%M%z"
+endDate = datetime.strftime(now, dt_format)
+startDate = datetime.strftime(now - timedelta(hours=sampleSizeHours), dt_format)
+#endDate = now
+#startDate = now - timedelta(hours=sampleSizeHours)
 
 # Agent config parameters
 
@@ -37,9 +42,11 @@ def main():
     sys_agents = get_agents()
     sys_datatypes = get_agent_datatypes(sys_agents)
     metrics_df = get_agent_metrics(sys_datatypes)
+    metrics_df = get_guest_metrics(metrics_df)
     metrics_df.to_csv('metrics.csv')
     end = time.perf_counter()
     print(str(end - start))
+    print(calls)
 
 
 def get_config():
@@ -50,12 +57,14 @@ def get_config():
 
     masked_call = client.call('Account', 'getVirtualGuests', mask=object_mask)
     sys_conf = {}
-
+    global calls
+    calls += 1
+    print("get config", calls)
     for account in masked_call:
         account['datacenter'] = account['datacenter']['name']
         account['operatingSystem'] = account['operatingSystem']['softwareLicense']['softwareDescription']['name']
         account['regionalGroup'] = account['regionalGroup']['name']
-        account['maxMemory'] = int(account['maxMemory']/1024)
+        account['maxMemory'] = int(account['maxMemory'] / 1024)
         account['powerState'] = account['powerState']['name']
         drive_tag = 1
 
@@ -80,6 +89,9 @@ def get_config():
 def get_agents():
     sys_agents = {}
     response = client.call('Account', 'getVirtualGuests', mask='mask[monitoringAgents[id, name, configurationValues]]')
+    global calls
+    calls += 1
+    print("get_agents", calls)
     for account in response:
         if account['monitoringAgents']:
             agents = [agent for agent in account['monitoringAgents'] if agent['name'] == agentName]
@@ -102,9 +114,12 @@ def get_agent_datatypes(s_agents):
                         if value['value'].strip().upper() == "TRUE":
                             try:
                                 response = agent_config_service.getMetricDataType(id=value['id'])
+                                global calls
+                                calls += 1
+                                print("get a data types", calls)
                                 metric_data_types.append(response)
                             except SoftLayer.SoftLayerAPIError as e:
-                                print("Unable to get the metrics. " %(e.faultCode, e.faultString))
+                                print("Unable to get the metrics. " % (e.faultCode, e.faultString))
                         else:
                             print("The report: " + item +
                                   " is disable for the agent. Please review the agent configuration.")
@@ -122,10 +137,13 @@ def get_agent_metrics(s_datatypes):
 
     for vsi_id in s_datatypes.keys():
         data = {}
-
         try:
             agent_id = s_datatypes[vsi_id].pop()
-            response = client.call("Monitoring_Agent", "getGraphData", s_datatypes[vsi_id], startDate, endDate, id=agent_id)
+            response = client.call("Monitoring_Agent", "getGraphData", s_datatypes[vsi_id], startDate, endDate,
+                                   id=agent_id)
+            global calls
+            calls += 1
+            print("get a metrics", calls)
             if len(response) != 0:
                 filter_data_points(data, response)
             else:  # if no value returned from api
@@ -145,13 +163,52 @@ def get_agent_metrics(s_datatypes):
     return df
 
 
+def get_guest_metrics(a_df):
+    vsi_ids = list(a_df.index.levels[0])
+    metric_dict = {}
+    metrics = ["network_in", "network_out"]
+
+    # Loops through each VSI using a VSI ID grabbed from the account
+    for virtual_id in vsi_ids:
+        # Creates an instance dictionary each time a new VSI is found
+        inst_dict = {}
+        #  selects correct api call format
+        response = client.call('Virtual_Guest', 'getBandwidthDataByDate', startDate, endDate, id=virtual_id)
+
+        # Reformats API response and stores in inst_dict
+        filter_data_points(inst_dict, response)
+
+        # Converts metric dictionaries to time-series, concatenates horizontally, stores by VSI ID
+        for key, value in inst_dict.items():
+            inst_dict[key] = Series(data=list(value.values()), index=value.keys())
+        inst_ts = concat(inst_dict.values(), axis=1, keys=metrics, sort=True)
+        metric_dict[virtual_id] = inst_ts
+    df = concat(metric_dict.values(), keys=vsi_ids, sort=True)
+    df.index.names = ['id', "dateTime"]
+    df = concat([df, a_df], axis=1)
+    return df
+
+
 # splits call returning metrics for 2+ types and appends {type : {datetime : data}} to input dict
 def filter_data_points(curr_dict, response):
     curr_dict[response[0]['type']] = {}
     for data_point in response:  # populating inst dict with type : {time : value}
         if data_point['type'] not in curr_dict.keys():  # handling of multiple metrics returned
             curr_dict[data_point['type']] = {}
+        data_point['dateTime'] = normalize_date_time(data_point['dateTime'])
         curr_dict[data_point['type']][data_point['dateTime']] = data_point['counter']
+
+
+# rounds minute down to nearest multiple of 5, and sets second and
+# millisecond values of time series to 0 to ensure proper concat
+def normalize_date_time(dt_string):
+    dt_string = dt_string[::-1].replace(':', '', 1)
+    dt_string = dt_string[::-1]
+    d_time = datetime.strptime(dt_string, "%Y-%m-%dT%H:%M:%S%z")
+    dt_string = str(d_time - timedelta(minutes=d_time.minute % 5, seconds=d_time.second, microseconds=d_time.microsecond))
+    dt_string = dt_string[::-1].replace(':', '', 1)
+    dt_string = dt_string[::-1]
+    return dt_string
 
 
 def print_json(file):  # json output shortcut
@@ -160,4 +217,3 @@ def print_json(file):  # json output shortcut
 
 if __name__ == '__main__':
     main()
-
