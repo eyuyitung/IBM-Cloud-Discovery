@@ -47,13 +47,16 @@ reports = {
 def main():
     conf_df = get_config()
     conf_df.to_csv(project_root + os.path.sep + 'config.csv')
+
     attr_df = get_attributes()
     attr_df.to_csv(project_root + os.path.sep + 'attributes.csv')
+
     sys_agents = get_agents()
     sys_datatypes = get_agent_datatypes(sys_agents)
     metrics_df = get_agent_metrics(sys_datatypes)
     metrics_df = get_guest_metrics(metrics_df)
     metrics_df.to_csv(project_root + os.path.sep + 'workload.csv')
+
     end = time.perf_counter()
     print("took %ss to retrieve configuration info from %s vsi(s) and process %s hours of metrics for %s vsi(s).\n"
           "monitoring agents were accessible on %s%% of account systems." %
@@ -181,8 +184,9 @@ def get_agent_datatypes(s_agents):
 
 def get_agent_metrics(s_datatypes):
     print("getting agent metrics ...")
-    acc_data = {}
-    metrics = ("cpu_utilization", "memory_utilization", "disk_space_used")  # TODO map datatype name to human readable
+    acc_data = {}  # disk read is actually space used #TODO replace with correct
+    metrics = {"CDM_CPU": "CPU Utilization", "CDM_MEMORY_PERC": "Memory Utilization",
+               "CDM_DISK": "Disk Space Utilization"}  # TODO map datatype name to human readable
 
     for vsi_id in s_datatypes.keys():
         data = {}
@@ -198,10 +202,12 @@ def get_agent_metrics(s_datatypes):
         except SoftLayer.SoftLayerAPIError as e:
             print("Unable to get the report: faultCode=%s, faultString=%s"
                   % (e.faultCode, e.faultString))
-
+        m_order = []
+        # converting dict to series
         for key, value in data.items():
             data[key] = Series(data=list(value.values()), index=value.keys())
-        inst_ts = concat(data.values(), axis=1, keys=metrics, sort=False)
+            m_order.append(metrics[key.upper().strip().split('_USAGE')[0]])
+        inst_ts = concat(data.values(), axis=1, keys=m_order, sort=False)
         global id_host_map
         if vsi_id in id_host_map.keys():
             acc_data[id_host_map[vsi_id]] = inst_ts
@@ -220,7 +226,7 @@ def get_guest_metrics(a_df):
             vsi_ids.append(vsi_id)
 
     metric_dict = {}
-    metrics = ("network_in", "network_out")
+    metrics = ("Raw Net Received Utilization", "Raw Net Sent Utilization")
 
     # Loops through each VSI using a VSI ID grabbed from the account
     for virtual_id in vsi_ids:

@@ -18,7 +18,7 @@ set fpath=%~sdp0
 IF "%1"=="" (
 	echo one week is 168 hours, month is 720 hours, cannot sample beyond 6 weeks [168 hours]
 	set /p HOURS=Please enter your desired sample size in hours: 
-	set /p acc_tag =Please enter username specified in config.py: 
+	set /p NAME=Please enter username specified in config.py: 
 	echo __________________  Collecting VSI's from provided credentials ...  __________________________
 	call:discoveryFunc %HOURS%
 	GOTO:EOF
@@ -32,14 +32,14 @@ for /f %%i in ('dir /b %fpath%conf') do 2>NUL del /q %fpath%conf\%%i
 2>NUL del /q %fpath%config.csv
 
 set temp=%~1
-set Project=%temp:~0,-5%
 
-ECHO  - Step 1 - GCP Discovery
+
+ECHO  - Step 1 - IBM Discovery
 %PYDIR% %fpath%src\main.py -t %~1 
 
 IF errorlevel 1 GOTO:END
 
-ECHO  - Step 2 - GCP Config
+ECHO  - Step 2 - IBM Config
 move %fpath%config.csv %fpath%conf\config.csv
 move %fpath%attributes.csv %fpath%conf\attributes.csv
 move %fpath%workload.csv %fpath%conf\workload.csv
@@ -48,7 +48,7 @@ IF errorlevel 1 (
 	set FILES="f"
 )
 ECHO  - Step 3 - Creating Manifest
-call "%CIRBA_HOME%\bin\audit-converter.bat" -m %fpath%conf\ "IBM-%acc_tag%"
+call "%CIRBA_HOME%\bin\audit-converter.bat" -m %fpath%conf\ "IBM-%NAME%"
 IF errorlevel 1 GOTO:END
 
 ECHO  - Step 4 - Creating Repository
