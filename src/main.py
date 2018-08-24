@@ -11,11 +11,10 @@
 
 # Import statements
 import SoftLayer
-import config
+from src import config
 from datetime import *
 import time
 from pandas import *
-import json
 import os
 import argparse
 
@@ -28,9 +27,12 @@ calls = 0
 parser = argparse.ArgumentParser()
 parser.add_argument('-t', dest='hours', default='24',
                     help='amount of hours to receive data from')
+parser.add_argument('-m', dest='midnight', default='Y',
+                    help='start metric timeframe from utc midnight yesterday [Y/N] ')
+
 args = parser.parse_args()
 sampleSizeHours = int(args.hours)
-
+midnight = bool(args.midnight.strip().upper() == 'Y')
 # Declaring the client using login details
 client = SoftLayer.create_client_from_env(config.USERNAME, config.API_KEY)
 project_root = os.path.abspath(os.path.join(__file__, "../.."))
@@ -39,9 +41,16 @@ project_root = os.path.abspath(os.path.join(__file__, "../.."))
 dc_utc_offset = -5.00
 now = (datetime.now(timezone(timedelta(hours=dc_utc_offset))))
 now = now - timedelta(minutes=now.minute % 5, seconds=now.second, microseconds=now.microsecond)
+utc_now = datetime.now(timezone.utc)
+utc_midnight = utc_now - timedelta(hours=utc_now.hour, minutes=utc_now.minute + 5,
+                                   seconds=utc_now.second, microseconds=utc_now.microsecond)
+if midnight:
+    input_time = utc_midnight
+else:
+    input_time = now
 dt_format = "%Y-%m-%dT%H:%M%z"
-endDate = datetime.strftime(now, dt_format)
-startDate = datetime.strftime(now - timedelta(hours=sampleSizeHours), dt_format)
+endDate = datetime.strftime(input_time, dt_format)
+startDate = datetime.strftime(input_time - timedelta(hours=sampleSizeHours), dt_format)
 
 # Global variables
 id_host_map = {}
@@ -64,12 +73,10 @@ def main():
     conf_df = get_config()
     # export config DataFrame to csv and place in project root
     conf_df.to_csv(project_root + os.path.sep + 'config.csv')
-
     # call api for vsi attribute values, returns DataFrame
     attr_df = get_attributes()
     # export attribute DataFrame to csv and place in project root
     attr_df.to_csv(project_root + os.path.sep + 'attributes.csv')
-
     # call api to retrieve agent info, returns dict of available agents by vsi
     # {vsi_id:[agent1 conf, agent2 conf ..]}
     sys_agents = get_agents()
@@ -87,10 +94,10 @@ def main():
     # script exec timer
     end = time.perf_counter()
     print("took %ss to retrieve configuration info from %s vsi(s) and process %s hours of metrics for %s vsi(s).\n"
-          "monitoring agents were accessible on %s%% of account systems." %
-          ('{:.2f}'.format(end - start), str(len(list(conf_df.index))), sampleSizeHours,
+          "monitoring agents were accessible on %s%% of account systems and metrics collected up until UTC midnight "
+          "yesterday : %s" % ('{:.2f}'.format(end - start), str(len(list(conf_df.index))), sampleSizeHours,
            str(len(list(workload_metric_df.index.levels[0]))),
-           '{:.0f}'.format(100*(len(list(workload_metric_df.index.levels[0]))/len(list(conf_df.index))))))
+           '{:.0f}'.format(100*(len(list(workload_metric_df.index.levels[0]))/len(list(conf_df.index)))), str(midnight)))
 
 
 # Gets the configuration values for a VSI (Name, ID, RAM, CPU, OS), returns DataFrame
@@ -359,6 +366,7 @@ def filter_data_points(curr_dict, response):
         curr_dict[data_point['type']][data_point['dateTime']] = data_point['counter']
 
 
+# TODO fix sample start time issue instead of spoofing times (nimsoft agent config issue)
 # rounds minute down to nearest multiple of 5, and sets second and
 # millisecond values of time series to 0 to ensure proper concat
 def normalize_datetime(dt_string):
@@ -371,9 +379,6 @@ def normalize_datetime(dt_string):
     return dt_string
 
 
-def print_json(file):  # json output shortcut
-    print(json.dumps(file, sort_keys=True, indent=2, separators=(',', ': ')))
-
-
+# ensure program is running as main process
 if __name__ == '__main__':
     main()
