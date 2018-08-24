@@ -30,9 +30,9 @@ echo Clearing previous config ...
 for /f %%i in ('dir /b %fpath%conf') do 2>NUL del /q %fpath%conf\%%i
 2>NUL del /q %fpath%workload.csv
 2>NUL del /q %fpath%config.csv
+2>NUL del /q %fpath%attributes.csv
 
 set temp=%~1
-
 
 ECHO  - Step 1 - IBM Discovery
 %PYDIR% %fpath%src\main.py -t %~1 

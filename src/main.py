@@ -184,9 +184,9 @@ def get_agent_datatypes(s_agents):
 
 def get_agent_metrics(s_datatypes):
     print("getting agent metrics ...")
-    acc_data = {}  # disk read is actually space used #TODO replace with correct
+    acc_data = {}
     metrics = {"CDM_CPU": "CPU Utilization", "CDM_MEMORY_PERC": "Memory Utilization",
-               "CDM_DISK": "Disk Space Utilization"}  # TODO map datatype name to human readable
+               "CDM_DISK": "Disk Space Utilization"}  # TODO update with properly mapped labels
 
     for vsi_id in s_datatypes.keys():
         data = {}
