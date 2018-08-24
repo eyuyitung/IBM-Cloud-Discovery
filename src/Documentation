@@ -1,0 +1,56 @@
+==IBM Cloud Monitoring for Densify==
+
+The purpose of this project is to test the possibility of collecting
+metrics from IBM Virtual Server Instances (VSI) for Densify.
+
+Authors:
+    Eric Yuyitung (Summer Student)
+        email: eyuyitung@densify.com
+
+    Stephen Newton (Summer Student)
+        email: snewton@densify.com
+
+Key Terms:
+    VSI = Virtual Service Instance (IBM name)
+    SoftLayer = The User Interface of IBM Cloud
+    Mask = A way of limiting the amount of data returned from a query
+
+For documented bugs regarding the nimsoft robot (IBM advanced monitoring agent) go to:
+    S:\cnewton\IBM doc on the network drive
+
+
+LINKS:
+    SOFTLAYER GITHUB API:
+        https://softlayer.github.io/
+
+            Full list of SoftLayer python methods:
+                https://softlayer.github.io/reference/softlayerapi/
+
+            Code examples (python):
+                https://softlayer.github.io/python/
+
+    Collecting usage metrics:
+        CPU:
+            https://softlayer.github.io/reference/services/SoftLayer_Virtual_Guest/getCpuMetricDataByDate/
+
+        MEMORY:
+            https://softlayer.github.io/reference/services/SoftLayer_Virtual_Guest/getMemoryMetricDataByDate/
+
+        BANDWIDTH:
+            https://softlayer.github.io/reference/services/SoftLayer_Virtual_Guest/getBandwidthDataByDate/
+
+        DISK:
+            Without agent:
+                https://softlayer.github.io/reference/services/SoftLayer_Account/getDiskUsageMetricDataByDate/
+
+            With agent:
+                https://softlayer.github.io/python/view_agent_report_disk_profile.py/
+
+    Collecting configuration metrics (with masks):
+        https://softlayer.github.io/reference/services/SoftLayer_Account/getVirtualGuests/
+        https://softlayer.github.io/reference/services/SoftLayer_Account/getDiskUsageMetricDataFromMetricTrackingObjectSystemByDate/
+        https://softlayer.github.io/reference/datatypes/SoftLayer_Virtual_Guest/
+
+    Interesting links:
+        https://softlayer.github.io/reference/services/SoftLayer_Account/getAggregatedUptimeGraph/
+        https://softlayer.github.io/reference/services/SoftLayer_Account_Historical_Report/
