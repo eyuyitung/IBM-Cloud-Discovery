@@ -5,10 +5,7 @@ metrics from IBM Virtual Server Instances (VSI) for Densify.
 
 Authors:
     Eric Yuyitung (Summer Student)
-        email: eyuyitung@densify.com
-
-    Stephen Newton (Summer Student)
-        email: snewton@densify.com
+    Stephen (Summer Student)
 
 Key Terms:
     VSI = Virtual Service Instance (IBM name).
@@ -16,7 +13,7 @@ Key Terms:
     Mask = A way of limiting the amount of data returned from an API call.
 
 For documented bugs regarding the nimsoft robot (IBM advanced monitoring agent) and other general information go to:
-    S:\cnewton\IBM doc on the network drive
+    T:\Product Management\IBM (SoftLayer) Cloud Discovery\IBM doc
 
 
 LINKS:
@@ -29,7 +26,7 @@ LINKS:
             Code examples (python):
                 https://softlayer.github.io/python/
     
-    Collecting usage metrics through Metric_Tracking_Object (current method used):
+    ***Collecting usage metrics through Metric_Tracking_Object*** (current method used):
         CPU/MEMORY/BANDWIDTH:
             https://softlayer.github.io/reference/services/SoftLayer_Metric_Tracking_Object/getSummaryData/
     
