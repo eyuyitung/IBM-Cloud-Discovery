@@ -5,18 +5,15 @@ metrics from IBM Virtual Server Instances (VSI) for Densify.
 
 Authors:
     Eric Yuyitung (Summer Student)
-        email: eyuyitung@densify.com
-
-    Stephen Newton (Summer Student)
-        email: snewton@densify.com
+    Stephen (Summer Student)
 
 Key Terms:
-    VSI = Virtual Service Instance (IBM name)
-    SoftLayer = The User Interface of IBM Cloud
-    Mask = A way of limiting the amount of data returned from a query
+    VSI = Virtual Service Instance (IBM name).
+    SoftLayer = The User Interface of IBM Cloud.
+    Mask = A way of limiting the amount of data returned from an API call.
 
-For documented bugs regarding the nimsoft robot (IBM advanced monitoring agent) go to:
-    S:\cnewton\IBM doc on the network drive
+For documented bugs regarding the nimsoft robot (IBM advanced monitoring agent) and other general information go to:
+    T:\Product Management\IBM (SoftLayer) Cloud Discovery\IBM doc
 
 
 LINKS:
@@ -28,23 +25,24 @@ LINKS:
 
             Code examples (python):
                 https://softlayer.github.io/python/
-
-    Collecting usage metrics:
+    
+    ***Collecting usage metrics through Metric_Tracking_Object*** (current method used):
+        CPU/MEMORY/BANDWIDTH:
+            https://softlayer.github.io/reference/services/SoftLayer_Metric_Tracking_Object/getSummaryData/
+    
+    Collecting usage metrics through Virtual_Guest (not being used):
         CPU:
             https://softlayer.github.io/reference/services/SoftLayer_Virtual_Guest/getCpuMetricDataByDate/
-
         MEMORY:
             https://softlayer.github.io/reference/services/SoftLayer_Virtual_Guest/getMemoryMetricDataByDate/
-
         BANDWIDTH:
             https://softlayer.github.io/reference/services/SoftLayer_Virtual_Guest/getBandwidthDataByDate/
-
         DISK:
-            Without agent:
-                https://softlayer.github.io/reference/services/SoftLayer_Account/getDiskUsageMetricDataByDate/
+            https://softlayer.github.io/reference/services/SoftLayer_Account/getDiskUsageMetricDataByDate/
 
-            With agent:
-                https://softlayer.github.io/python/view_agent_report_disk_profile.py/
+    Collecting usage metrics through the Nimsoft Robot (not being used):
+        CPU/MEMORY/DISK:
+            https://softlayer.github.io/reference/services/SoftLayer_Monitoring_Agent/getGraphData/
 
     Collecting configuration metrics (with masks):
         https://softlayer.github.io/reference/services/SoftLayer_Account/getVirtualGuests/
